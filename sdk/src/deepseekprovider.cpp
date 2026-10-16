@@ -1,5 +1,9 @@
+#define CPPHTTPLIB_OPENSSL_SUPPORT
 #include "../include/deepseekprovider.h"
 #include "../include/util/log.h"
+#include <httplib.h>
+#include <jsoncpp/json/json.h>
+#include <sstream>
 
 namespace ai_chat_sdk
 {
@@ -26,8 +30,11 @@ namespace ai_chat_sdk
         if (m_BaseURL.back() != '/')
             m_BaseURL += '/';
         
-        // 初始化成功
-        LOG_INFO("DeepSeekProvider init success, api_key: %s, base_url: %s", m_APIKey.c_str(), m_BaseURL.c_str());
+        // 初始化成功（key 掩码：只显示前4后4位，防止日志泄露）
+        std::string maskedKey = (m_APIKey.size() > 8)
+            ? m_APIKey.substr(0, 4) + "****" + m_APIKey.substr(m_APIKey.size() - 4)
+            : "***";
+        LOG_INFO("DeepSeekProvider init success, api_key: {}, base_url: {}", maskedKey, m_BaseURL);
         m_is_available = true;
         return true;
     }
@@ -53,8 +60,80 @@ namespace ai_chat_sdk
     // 发送消息-期望模型全量返回
     std::string DeepSeekProvider::sendMessage(const std::vector<Message> &messages, 
         const std::map<std::string, std::string> &params)
-    {
-        return "";
+    {   
+        // 1. 检查模型是否可用
+        if (m_is_available == false)
+        {
+            LOG_ERROR("DeepSeekProvider sendMessage failed, model is not available");
+            return "";
+        }
+
+        // 2. 构造请求参数
+        double temperature = 0.7;
+        int max_tokens = 1024;
+        if (params.find("temperature") != params.end())
+            temperature = std::stod(params.at("temperature"));
+        if (params.find("max_tokens") != params.end())
+            max_tokens = std::stoi(params.at("max_tokens"));
+
+        // 3. 构造历史消息
+        Json::Value messageArray(Json::arrayValue);
+        for (auto &message: messages)
+        {
+            Json::Value messageObj(Json::objectValue);
+            messageObj["role"] = message.role;
+            messageObj["content"] = message.content;
+            messageArray.append(messageObj);
+        }
+
+        // 4. 构造请求体
+        Json::Value requestBody(Json::objectValue);
+        requestBody["model"] = getModelName();
+        requestBody["messages"] = messageArray;
+        requestBody["temperature"] = temperature;
+        requestBody["max_tokens"] = max_tokens;
+        requestBody["stream"] = false;
+
+        // 5. 序列化
+        Json::StreamWriterBuilder builder;
+        builder["indentation"] = "";
+        std::string requestBodyStr = Json::writeString(builder, requestBody);
+        LOG_INFO("DeepSeekProvider sendMessage request body: {}", requestBodyStr);
+        
+        // 6. 使用cpp-httplib库构造HTTP客户端
+        httplib::Client client(m_BaseURL);
+        client.set_connection_timeout(30, 0);     // 连接超时时间30秒
+        client.set_read_timeout(60, 0);           // 读取超时时间60秒
+
+        // 设置请求头
+        httplib::Headers headers;
+        headers.insert({"Authorization", "Bearer " + m_APIKey});
+        headers.insert({"Content-Type",  "application/json"});
+        headers.insert({"Accept",        "application/json"});
+        headers.insert({"User-Agent",    "DeepSeekProvider/1.0"});
+
+        // 7. 发送POST请求
+        httplib::Result result = client.Post(
+            "/chat/completions", headers, requestBodyStr, "application/json");
+        // 检查响应是否为空
+        if (!result)
+        {
+            std::ostringstream oss;
+            oss << result.error();
+            LOG_ERROR("DeepSeekProvider sendMessage failed, error: {}", oss.str());
+            return "";
+        }
+        // 检查响应状态码
+        if (result->status != 200)
+        {
+            LOG_ERROR("DeepSeekProvider HTTP {}: {}", result->status, result->body);
+            return "";
+        }
+        // 打印状态码和body
+        LOG_INFO("DeepSeekProvider sendMessage success, status: {}, body: {}",
+                 result->status, result->body);
+        return result->body;
+    
     }
 
     // 发送消息-期望模型流式返回
