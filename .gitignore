@@ -1,0 +1,21 @@
+# 编译产物
+build/
+*.o
+*.obj
+*.so
+*.a
+*.exe
+test/build/
+
+# IDE 配置
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 日志文件
+*.log

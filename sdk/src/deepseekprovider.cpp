@@ -26,11 +26,11 @@ namespace ai_chat_sdk
             return false;
         }
         m_BaseURL = config.at("base_url");
-        
-        // 检查BaseURL是否以"/"结尾
-        if (m_BaseURL.back() != '/')
-            m_BaseURL += '/';
-        
+
+        // 去掉结尾的斜杠（httplib 0.10.x 对带尾斜杠的 base_url 解析有 bug，会导致 Connection 失败）
+        while (!m_BaseURL.empty() && m_BaseURL.back() == '/')
+            m_BaseURL.pop_back();
+
         // 初始化成功（key 掩码：只显示前4后4位，防止日志泄露）
         std::string maskedKey = (m_APIKey.size() > 8)
             ? m_APIKey.substr(0, 4) + "****" + m_APIKey.substr(m_APIKey.size() - 4)

@@ -1,5 +1,5 @@
 #include "../sdk/include/deepseekprovider.h"
-#include "../sdk/src/util/log.cpp"
+#include "../sdk/include/util/log.h"
 #include <cstdlib>
 #include <gtest/gtest.h>
 
