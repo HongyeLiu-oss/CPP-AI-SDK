@@ -186,6 +186,79 @@ namespace ai_chat_sdk
         const std::map<std::string, std::string> &params, 
         std::function<void(const std::string &, bool)> callback)
     {
+        // 1. 检查模型是否可用
+        if (!isAvailable())
+        {
+            LOG_ERROR("DeepSeekProvider sendMessageStream failed, model is not available");
+            return "";
+        }
+
+        // 2. 构造请求参数
+        double temperature = 0.7;
+        int max_tokens = 1024;
+        // std::stod 和std::stoi 在解析失败时会抛异常，而不是返回错误码，需要进行错误处理
+        try
+        {
+            if (params.find("temperature") != params.end())
+                temperature = std::stod(params.at("temperature"));
+            if (params.find("max_tokens") != params.end())
+                max_tokens = std::stoi(params.at("max_tokens"));
+        }
+        catch (const std::exception &e)
+        {
+            LOG_ERROR("DeepSeekProvider invalid params: {}", e.what());
+            return "";
+        }
+
+        // 3. 检查消息列表是否为空
+        // 如果messages是空的,messageArray就是[],发给 DeepSeek 会返回 400 Bad Request （API 要求至少有一条消息）。
+        // 与其浪费一次网络请求等服务器报错，不如 在本地提前拦截 ，更快、更省资源、日志也更清晰
+        if (messages.empty())
+        {
+            LOG_ERROR("DeepSeekProvider sendMessage failed, messages list is empty");
+            return "";
+        }
+
+        // 4. 构造历史消息
+        Json::Value messageArray(Json::arrayValue);
+        for (auto &message: messages)
+        {
+            Json::Value messageObj(Json::objectValue);
+            messageObj["role"] = message.role;
+            messageObj["content"] = message.content;
+            messageArray.append(messageObj);
+        }
+
+        // 5. 构造请求体
+        Json::Value requestBody(Json::objectValue);
+        requestBody["model"] = getModelName();
+        requestBody["messages"] = messageArray;
+        requestBody["temperature"] = temperature;
+        requestBody["max_tokens"] = max_tokens;
+        requestBody["stream"] = true;
+
+        // 6. 序列化
+        Json::StreamWriterBuilder writeBuilder;
+        writeBuilder["indentation"] = "";
+        std::string requestBodyStr = Json::writeString(writeBuilder, requestBody);
+        LOG_INFO("DeepSeekProvider sendMessage request body: {}", requestBodyStr);
+        
+        // 7. 使用cpp-httplib库构造HTTP客户端
+        httplib::Client client(m_BaseURL);
+        client.set_connection_timeout(30, 0);     // 连接超时时间30秒
+        client.set_read_timeout(300, 0);           // 流式响应需要更长的时间
+        
+        // 设置请求头
+        httplib::Headers headers;
+        headers.insert({"Authorization", "Bearer " + m_APIKey});
+        headers.insert({"Content-Type",  "application/json"});
+        headers.insert({"Accept",        "text/event-stream"});
+        headers.insert({"User-Agent",    "DeepSeekProvider/1.0"});
+
+        // 8. 定义流式变量
+        std::string buffer;    // 流式响应缓冲区
+        bool gotError = false; // 标记是否遇到错误
+
         return "";
     }
 } // namespace ai_chat_sdk
