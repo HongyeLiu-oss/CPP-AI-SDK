@@ -1,4 +1,5 @@
 #define CPPHTTPLIB_OPENSSL_SUPPORT
+#include <jsoncpp/json/reader.h>
 #include "../include/deepseekprovider.h"
 #include "../include/util/log.h"
 #include <httplib.h>
@@ -71,12 +72,30 @@ namespace ai_chat_sdk
         // 2. 构造请求参数
         double temperature = 0.7;
         int max_tokens = 1024;
-        if (params.find("temperature") != params.end())
-            temperature = std::stod(params.at("temperature"));
-        if (params.find("max_tokens") != params.end())
-            max_tokens = std::stoi(params.at("max_tokens"));
+        // std::stod 和std::stoi 在解析失败时会抛异常，而不是返回错误码，需要进行错误处理
+        try
+        {
+            if (params.find("temperature") != params.end())
+                temperature = std::stod(params.at("temperature"));
+            if (params.find("max_tokens") != params.end())
+                max_tokens = std::stoi(params.at("max_tokens"));
+        }
+        catch (const std::exception &e)
+        {
+            LOG_ERROR("DeepSeekProvider invalid params: {}", e.what());
+            return "";
+        }
 
-        // 3. 构造历史消息
+        // 3. 检查消息列表是否为空
+        // 如果messages是空的,messageArray就是[],发给 DeepSeek 会返回 400 Bad Request （API 要求至少有一条消息）。
+        // 与其浪费一次网络请求等服务器报错，不如 在本地提前拦截 ，更快、更省资源、日志也更清晰
+        if (messages.empty())
+        {
+            LOG_ERROR("DeepSeekProvider sendMessage failed, messages list is empty");
+            return "";
+        }
+
+        // 4. 构造历史消息
         Json::Value messageArray(Json::arrayValue);
         for (auto &message: messages)
         {
@@ -86,7 +105,7 @@ namespace ai_chat_sdk
             messageArray.append(messageObj);
         }
 
-        // 4. 构造请求体
+        // 5. 构造请求体
         Json::Value requestBody(Json::objectValue);
         requestBody["model"] = getModelName();
         requestBody["messages"] = messageArray;
@@ -94,13 +113,13 @@ namespace ai_chat_sdk
         requestBody["max_tokens"] = max_tokens;
         requestBody["stream"] = false;
 
-        // 5. 序列化
-        Json::StreamWriterBuilder builder;
-        builder["indentation"] = "";
-        std::string requestBodyStr = Json::writeString(builder, requestBody);
+        // 6. 序列化
+        Json::StreamWriterBuilder writeBuilder;
+        writeBuilder["indentation"] = "";
+        std::string requestBodyStr = Json::writeString(writeBuilder, requestBody);
         LOG_INFO("DeepSeekProvider sendMessage request body: {}", requestBodyStr);
         
-        // 6. 使用cpp-httplib库构造HTTP客户端
+        // 7. 使用cpp-httplib库构造HTTP客户端
         httplib::Client client(m_BaseURL);
         client.set_connection_timeout(30, 0);     // 连接超时时间30秒
         client.set_read_timeout(60, 0);           // 读取超时时间60秒
@@ -112,7 +131,7 @@ namespace ai_chat_sdk
         headers.insert({"Accept",        "application/json"});
         headers.insert({"User-Agent",    "DeepSeekProvider/1.0"});
 
-        // 7. 发送POST请求
+        // 8. 发送POST请求
         httplib::Result result = client.Post(
             "/chat/completions", headers, requestBodyStr, "application/json");
         // 检查响应是否为空
@@ -120,7 +139,7 @@ namespace ai_chat_sdk
         {
             std::ostringstream oss;
             oss << result.error();
-            LOG_ERROR("DeepSeekProvider sendMessage failed, error: {}", oss.str());
+            LOG_ERROR("DeepSeekProvider HTTP request failed: {}", oss.str());
             return "";
         }
         // 检查响应状态码
@@ -130,10 +149,36 @@ namespace ai_chat_sdk
             return "";
         }
         // 打印状态码和body
-        LOG_INFO("DeepSeekProvider sendMessage success, status: {}, body: {}",
-                 result->status, result->body);
-        return result->body;
-    
+        LOG_INFO("DeepSeekProvider HTTP response received, status: {}, body: {}",
+         result->status, result->body);
+
+        // 9. 解析响应体
+        Json::Value responseBody;
+        Json::CharReaderBuilder readBuilder;
+        std::string parseError;
+        std::istringstream responseStream(result->body);
+        if (!Json::parseFromStream(readBuilder, responseStream, &responseBody, &parseError))
+        {
+            LOG_ERROR("DeepSeekProvider failed to parse response body: {}", parseError);
+            return "";
+        }
+
+        // 安全取值：先判断字段是否存在
+        if (responseBody.isMember("choices") 
+        && responseBody["choices"].isArray()
+        && responseBody["choices"].size() > 0
+        && responseBody["choices"][0].isMember("message")
+        && responseBody["choices"][0]["message"].isMember("content")
+        && responseBody["choices"][0]["message"]["content"].isString())
+        {   // .asString() 对非字符串类型 不会崩 ，但会默默返回空串。问题是：你无法区分"模型真的回复了空字符串"和"content 字段类型不对"——前者应该返回空串，后者应该报错。
+            std::string content = responseBody["choices"][0]["message"]["content"].asString();
+            LOG_INFO("DeepSeekProvider response text : {}", content);
+            return content;
+        }
+        
+        // 10. 响应格式不符合预期（JSON 解析成功，但结构里没有 choices/message/content）
+        LOG_ERROR("DeepSeekProvider unexpected response format, body: {}", result->body);
+        return "";
     }
 
     // 发送消息-期望模型流式返回
