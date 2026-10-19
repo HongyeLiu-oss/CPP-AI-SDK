@@ -29,6 +29,7 @@ namespace ai_chat_sdk
         protected:
             bool m_is_available = false;     // 模型是否有效
             std::string m_APIKey;            // API密钥
-            std::string m_BaseURL;           // 模型API基础URL
+            std::string m_BaseURL;           // 模型API基础URL（scheme://host[:port]）
+            std::string m_PathPrefix;        // API路径前缀（如 /api/paas/v4），httplib Client 不支持在 base_url 中带路径
     };
 }

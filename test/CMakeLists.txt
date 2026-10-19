@@ -17,7 +17,8 @@ set(CMAKE_BUILD_TYPE Debug)
 # 添加可执行文件
 add_executable(testLLM testllm.cpp
     ../sdk/src/util/log.cpp
-    ../sdk/src/deepseekprovider.cpp)
+    ../sdk/src/deepseekprovider.cpp
+    ../sdk/src/glmprovider.cpp)
 
 # 添加头文件搜索路径
 include_directories(${CMAKE_PROJECT_INCLUDE_DIR}/../sdk/include)

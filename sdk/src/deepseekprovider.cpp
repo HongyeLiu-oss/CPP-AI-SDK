@@ -25,12 +25,14 @@ namespace ai_chat_sdk
             LOG_ERROR("DeepSeekProvider base_url is not found in config");
             return false;
         }
-        m_BaseURL = config.at("base_url");
 
-        // 去掉结尾的斜杠（httplib 0.10.x 对带尾斜杠的 base_url 解析有 bug，会导致 Connection 失败）
+        // httplib 0.10.x 的 Client 只能接受 scheme://host[:port]，不能带路径
+        m_BaseURL = config.at("base_url");
+        // 去尾斜杠
         while (!m_BaseURL.empty() && m_BaseURL.back() == '/')
             m_BaseURL.pop_back();
-
+     
+        m_PathPrefix = "";  // DeepSeek 无版本前缀
         // 初始化成功（key 掩码：只显示前4后4位，防止日志泄露）
         std::string maskedKey = (m_APIKey.size() > 8)
             ? m_APIKey.substr(0, 4) + "****" + m_APIKey.substr(m_APIKey.size() - 4)
@@ -116,6 +118,7 @@ namespace ai_chat_sdk
         // 6. 序列化
         Json::StreamWriterBuilder writeBuilder;
         writeBuilder["indentation"] = "";
+        writeBuilder["emitUTF8"] = true;
         std::string requestBodyStr = Json::writeString(writeBuilder, requestBody);
         LOG_INFO("DeepSeekProvider sendMessage request body: {}", requestBodyStr);
         
@@ -132,8 +135,9 @@ namespace ai_chat_sdk
         headers.insert({"User-Agent",    "DeepSeekProvider/1.0"});
 
         // 8. 发送POST请求
+        std::string apiPath = m_PathPrefix + "/chat/completions";
         httplib::Result result = client.Post(
-            "/chat/completions", headers, requestBodyStr, "application/json");
+            apiPath.c_str(), headers, requestBodyStr, "application/json");
         // 检查响应是否为空
         if (!result)
         {
@@ -240,6 +244,7 @@ namespace ai_chat_sdk
         // 6. 序列化
         Json::StreamWriterBuilder writeBuilder;
         writeBuilder["indentation"] = "";
+        writeBuilder["emitUTF8"] = true;
         std::string requestBodyStr = Json::writeString(writeBuilder, requestBody);
         LOG_INFO("DeepSeekProvider sendMessage request body: {}", requestBodyStr);
         
@@ -263,7 +268,7 @@ namespace ai_chat_sdk
         // 9. 创建请求对象
         httplib::Request req;
         req.method = "POST";
-        req.path = "/chat/completions";
+        req.path = (m_PathPrefix + "/chat/completions").c_str();
         req.headers = headers;
         req.body = requestBodyStr;
 
@@ -360,7 +365,7 @@ namespace ai_chat_sdk
         {
             std::ostringstream oss;
             oss << result.error();
-            LOG_ERROR("DeepSeekProvider sendMessageStream HTTP request failed: error={}, url={}", oss.str(), m_BaseURL + "/chat/completions");
+            LOG_ERROR("DeepSeekProvider sendMessageStream HTTP request failed: error={}, url={}{}/chat/completions", oss.str(), m_BaseURL, m_PathPrefix);
             callback("", StreamStatus::Done);  
             return "";
         }
