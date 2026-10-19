@@ -7,6 +7,7 @@
 
 namespace ai_chat_sdk
 {
+    enum class StreamStatus { InProgress, Done };
     class LLMProvider
     {
         public:
@@ -24,7 +25,7 @@ namespace ai_chat_sdk
             // 发送消息-流式返回
             virtual std::string sendMessageStream(const std::vector<Message> &messages, 
                 const std::map<std::string, std::string> &params, 
-                std::function<void(const std::string &, bool)> callback) = 0;
+                std::function<void(const std::string &, StreamStatus)> callback) = 0;
         protected:
             bool m_is_available = false;     // 模型是否有效
             std::string m_APIKey;            // API密钥

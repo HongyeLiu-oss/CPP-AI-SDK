@@ -20,6 +20,6 @@ namespace ai_chat_sdk
         // 发送消息-流式返回
         std::string sendMessageStream(const std::vector<Message> &messages, 
             const std::map<std::string, std::string> &params, 
-            std::function<void(const std::string &, bool)> callback) override;
+            std::function<void(const std::string &, StreamStatus)> callback) override;
     };
 } // namespace ai_chat_sdk
