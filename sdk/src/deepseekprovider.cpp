@@ -290,7 +290,7 @@ namespace ai_chat_sdk
 
             // 累加数据到缓冲区
             buffer.append(data, len);
-            LOG_INFO("DeepSeekProvider sendMessageStream buffer: {}", buffer);
+            LOG_TRACE("DeepSeekProvider sendMessageStream buffer: {}", buffer);
             
             // 处理所有的流式响应的数据块，数据块之间以\n\n分隔
             size_t pos = 0;
@@ -330,12 +330,14 @@ namespace ai_chat_sdk
                             modelDataJson["choices"][0].isMember("delta") &&
                             modelDataJson["choices"][0]["delta"].isMember("content"))
                             {
-                                // 提取content字段
-                                std::string content = modelDataJson["choices"][0]["delta"]["content"].asString();
-                                // 追加到fullResponse
-                                fullResponse += content;
-                                // 将本次解析出的有效数据返回给调用sendMessageStream的用户使用
-                                callback(content, StreamStatus::InProgress);
+                                // 提取content字段，注意：jsoncpp对null值asString()返回空串
+                                Json::Value contentVal = modelDataJson["choices"][0]["delta"]["content"];
+                                if (!contentVal.isNull() && contentVal.isString())
+                                {
+                                    std::string content = contentVal.asString();
+                                    fullResponse += content;
+                                    callback(content, StreamStatus::InProgress);
+                                }
                             }
                     }
                     else

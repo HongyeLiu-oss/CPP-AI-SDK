@@ -41,7 +41,7 @@ namespace log_module
         // [%7l]     日志级别，左对齐，宽度为7个字符
         // [%s:%#]   源文件 basename + 行号（短文件名，避免完整路径溢出）
         // %v        日志消息
-        m_logger->set_pattern("[%H:%M:%S][%n][%7l][%s:%#] %v");
+        m_logger->set_pattern("[%H:%M:%S][%n][%l][%s:%#] %v");
         m_logger->set_level(level);
     }
 

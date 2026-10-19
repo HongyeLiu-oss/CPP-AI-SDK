@@ -19,9 +19,6 @@ add_executable(testLLM testllm.cpp
     ../sdk/src/util/log.cpp
     ../sdk/src/deepseekprovider.cpp)
 
-# 设置输出目录
-set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/build)
-
 # 添加头文件搜索路径
 include_directories(${CMAKE_PROJECT_INCLUDE_DIR}/../sdk/include)
 
