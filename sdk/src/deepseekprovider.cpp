@@ -289,7 +289,9 @@ namespace ai_chat_sdk
         // 10. 设置数据接收处理器，用于解析流式响应的每个块
         req.content_receiver = [&](const char* data, size_t len, size_t offset, size_t totalLength)
         {
-            // 验证响应头是否错误，如果错误就不需要再接受数据
+            // 如果 response_handler 已经判定 HTTP 状态码非 200，这里立即终止接收
+            // 注意：不再重复调用 callback("", Done)，因为 response_handler 中已经通知过上层
+            // 此处的 return false 仅用于告诉 httplib 停止后续的 content_receiver 回调
             if (getError == true)
                 return false;
 
@@ -349,6 +351,10 @@ namespace ai_chat_sdk
                     {
                         LOG_ERROR("DeepSeekProvider sendMessageStream parseFromStream failed, error: {}", parseError);
                     }
+                }
+                else 
+                {
+                    LOG_WARN("DeepSeekProvider unexpected SSE chunk prefix, skipped: {}", chunk);
                 }
 
             }
