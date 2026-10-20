@@ -45,20 +45,9 @@ namespace ai_chat_sdk
         bool isAvailable = false;     // 模型是否可用
 
         // 构造函数
-        ModelInfo(const std::string &modelName_, const std::string &description_, const std::string &provider_, const std::string &endpoint_)
+        ModelInfo(const std::string &modelName_)
         :modelName(modelName_)
-        ,description(description_)
-        ,provider(provider_)
-        ,endpoint(endpoint_)
         {}
-    };
-
-
-
-    // 通过Ollama方式接入本地模型
-    struct OllamaModelConfig : public ModelConfig
-    {
-        std::string ollamaUrl;        // Ollama地址
     };
 
     // 会话信息
