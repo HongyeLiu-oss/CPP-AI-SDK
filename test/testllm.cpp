@@ -103,14 +103,19 @@ TEST(GLMProviderTest, sendMessageStream)
     std::shared_ptr<ai_chat_sdk::GLMProvider> provider = std::make_shared<ai_chat_sdk::GLMProvider>();
     ASSERT_TRUE(provider);
 
-    std::map<std::string, std::string> modelParams;
-    modelParams["api_key"] = std::getenv("ZHIPU_API_KEY");
-    modelParams["base_url"] = std::getenv("ZHIPU_BASE_URL");
-    
-    provider->init(modelParams);
+    ai_chat_sdk::ApiModelConfig config;
+    config.modelName = "glm-5.3-flash";
+    const char *apiKey = std::getenv("ZHIPU_API_KEY");
+    const char *baseUrl = std::getenv("ZHIPU_BASE_URL");
+    config.apiKey = apiKey ? apiKey : "";
+    config.baseUrl = baseUrl ? baseUrl : "";
+
+    provider->init(config);
     ASSERT_TRUE(provider->isAvailable());
 
-    std::map<std::string, std::string> requestParams = { {"temperature", "1.0"}, {"max_tokens", "256"} };
+    ai_chat_sdk::GenerationParams params;
+    params.temperature = 1.0;
+    params.maxTokens = 256;
     std::vector<ai_chat_sdk::Message> messages;
     messages.push_back({"user", "你是什么模型？"});
 
@@ -134,7 +139,7 @@ TEST(GLMProviderTest, sendMessageStream)
     };
 
     // sendMessageStream 是同步阻塞的，返回时流已经走完了
-    std::string fullResponse = provider->sendMessageStream(messages, requestParams, callback);
+    std::string fullResponse = provider->sendMessageStream(messages, params, callback);
 
     // 断言 1：流必须被标记为结束
     ASSERT_TRUE(streamDone) << "callback 未收到 Done 信号";

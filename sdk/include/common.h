@@ -21,18 +21,24 @@ namespace ai_chat_sdk
         {}
     };
 
-    // 模型的公共配置信息
-    struct ModelConfig
+    // 单次请求的生成参数
+    struct GenerationParams
     {
-        std::string modelName;        // 模型名称
-        double temperature;           // 温度参数： 控制输出的随机性，值越小越确定，值越大越随机
-        int maxTokens;                // 最大输出token数
+        double temperature = 0.7;     // 温度参数： 控制输出的随机性，值越小越确定，值越大越随机
+        int maxTokens = 2048;         // 最大输出token数
     };
 
-    // 通过API方式接入云端模型
+    // 模型的公共配置信息
+    struct ModelConfig : public GenerationParams
+    {
+        std::string modelName;        // 模型名称
+    };
+
+    // 通过API方式接入云端模型的配置
     struct ApiModelConfig : public ModelConfig
     {
         std::string apiKey;           // API密钥
+        std::string baseUrl;          // API基础地址，如 https://api.deepseek.com
     };
 
     // LLM 信息

@@ -4,30 +4,35 @@
 
 namespace ai_chat_sdk
 {
-    bool LLMManager::addModel(const std::string &modelName, std::shared_ptr<LLMProvider> provider,
-        const std::map<std::string, std::string> &config)
+    bool LLMManager::addModel(const std::shared_ptr<LLMProvider> &provider, const ApiModelConfig &config)
     {
+        // 检查模型名是否为空
+        if (config.modelName.empty())
+        {
+            LOG_ERROR("Model name is empty");
+            return false;
+        }
         // 检查 provider 是否为空
         if (!provider)
         {
-            LOG_ERROR("Provider is null for model: {}", modelName);
+            LOG_ERROR("Provider is null for model: {}", config.modelName);
             return false;
         }
         // 检查模型是否已存在
-        if (m_providers.find(modelName) != m_providers.end())
+        if (m_providers.find(config.modelName) != m_providers.end())
         {
-            LOG_ERROR("Model already registered: {}", modelName);
+            LOG_ERROR("Model already registered: {}", config.modelName);
             return false;
         }
         // 初始化 provider；init 失败则不注册
         if (!provider->init(config))
         {
-            LOG_ERROR("Model initialization failed: {}", modelName);
+            LOG_ERROR("Model initialization failed: {}", config.modelName);
             return false;
         }
         // init 成功才存入，实现原子化注册
-        m_providers.emplace(modelName, provider);
-        LOG_INFO("Model added: {}", modelName);
+        m_providers.emplace(config.modelName, provider);
+        LOG_INFO("Model added: {}", config.modelName);
         return true;
     }
 
@@ -53,7 +58,7 @@ namespace ai_chat_sdk
     }
 
     std::string LLMManager::sendMessage(const std::string &modelName, const std::vector<Message> &messages, 
-        const std::map<std::string, std::string> &requestParams)
+        const GenerationParams &params)
     {
         auto it = m_providers.find(modelName);
         if (it == m_providers.end())
@@ -66,11 +71,11 @@ namespace ai_chat_sdk
             LOG_ERROR("Model not available: {}", modelName);
             return "";
         }
-        return it->second->sendMessage(messages, requestParams);
+        return it->second->sendMessage(messages, params);
     }
 
     std::string LLMManager::sendMessageStream(const std::string &modelName, const std::vector<Message> &messages, 
-        const std::map<std::string, std::string> &requestParams, 
+        const GenerationParams &params, 
         std::function<void(const std::string &, StreamStatus)> callback)
     {
         auto it = m_providers.find(modelName);
@@ -84,6 +89,6 @@ namespace ai_chat_sdk
             LOG_ERROR("Model not available: {}", modelName);
             return "";
         }
-        return it->second->sendMessageStream(messages, requestParams, callback);
+        return it->second->sendMessageStream(messages, params, callback);
     }
 }// namespace ai_chat_sdk

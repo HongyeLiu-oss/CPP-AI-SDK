@@ -13,18 +13,18 @@ namespace ai_chat_sdk
     {
     public:
         // 添加并初始化一个模型（注册 + init 原子化，init 失败则不注册）
-        bool addModel(const std::string &modelName, std::shared_ptr<LLMProvider> provider,
-            const std::map<std::string, std::string> &config);
+        // 模型名取自 config.modelName，作为后续 sendMessage 的 key
+        bool addModel(const std::shared_ptr<LLMProvider> &provider, const ApiModelConfig &config);
         // 获取所有可用模型
         std::vector<ModelInfo> getAvailableModels() const;
         // 检查模型是否可用
         bool isModelAvailable(const std::string &modelName) const;
         // 发送消息给指定模型
         std::string sendMessage(const std::string &modelName, const std::vector<Message> &messages, 
-            const std::map<std::string, std::string> &requestParams);
+            const GenerationParams &params);
         // 发送消息流给指定模型
         std::string sendMessageStream(const std::string &modelName, const std::vector<Message> &messages, 
-            const std::map<std::string, std::string> &requestParams, 
+            const GenerationParams &params, 
             std::function<void(const std::string &, StreamStatus)> callback);
     private:
         // 模型名称到提供者的映射

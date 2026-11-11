@@ -40,7 +40,7 @@ namespace ai_chat_sdk
         std::unordered_map<std::string, std::shared_ptr<Session>> m_sessions;
         mutable std::mutex m_mutex;
         // 两个 static 原子计数器，跨 SessionManager 实例也不会撞号
-        static std::atomic<int64_t> m_messageCounter;
-        static std::atomic<int64_t> m_sessionCounter;
+        static std::atomic<int64_t> s_messageCounter;
+        static std::atomic<int64_t> s_sessionCounter;
     };
 }

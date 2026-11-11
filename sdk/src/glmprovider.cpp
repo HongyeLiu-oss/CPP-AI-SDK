@@ -11,51 +11,53 @@ namespace ai_chat_sdk
 {
     // GLMProvider类实现
     // 初始化模型
-    bool GLMProvider::init(const std::map<std::string, std::string> &config)
+    bool GLMProvider::init(const ApiModelConfig &config)
     {
-        // 初始化api_key
-        if (config.find("api_key") == config.end())
+        // 初始化模型名（必须与智谱 API 支持的模型 id 一致）
+        if (config.modelName.empty())
         {
-            LOG_ERROR("GLMProvider api_key is not found in config");
+            LOG_ERROR("GLMProvider modelName is empty");
             return false;
         }
-        m_APIKey = config.at("api_key");
+        m_modelName = config.modelName;
 
-        // 初始化BaseURL
-        if (config.find("base_url") == config.end())
+        // 初始化 apiKey
+        if (config.apiKey.empty())
         {
-            LOG_ERROR("GLMProvider base_url is not found in config");
+            LOG_ERROR("GLMProvider apiKey is empty");
+            return false;
+        }
+        m_apiKey = config.apiKey;
+
+        // 初始化 baseUrl
+        if (config.baseUrl.empty())
+        {
+            LOG_ERROR("GLMProvider baseUrl is empty");
             return false;
         }
 
         // httplib 0.10.x 的 Client 只能接受 scheme://host[:port]，不能带路径
-        m_BaseURL = config.at("base_url");
+        m_baseUrl = config.baseUrl;
         // 去尾斜杠
-        while (!m_BaseURL.empty() && m_BaseURL.back() == '/')
-            m_BaseURL.pop_back();
+        while (!m_baseUrl.empty() && m_baseUrl.back() == '/')
+            m_baseUrl.pop_back();
         
         // 智谱所有模型共用的 API 版本前缀
-        m_PathPrefix = "/api/paas/v4";
+        m_pathPrefix = "/api/paas/v4";
 
         // 初始化成功（key 掩码：只显示前4后4位，防止日志泄露）
-        std::string maskedKey = (m_APIKey.size() > 8)
-            ? m_APIKey.substr(0, 4) + "****" + m_APIKey.substr(m_APIKey.size() - 4)
+        std::string maskedKey = (m_apiKey.size() > 8)
+            ? m_apiKey.substr(0, 4) + "****" + m_apiKey.substr(m_apiKey.size() - 4)
             : "***";
-        LOG_INFO("GLMProvider init success, api_key: {}, base_url: {}", maskedKey, m_BaseURL);
-        m_is_available = true;
+        LOG_INFO("GLMProvider init success, apiKey: {}, baseUrl: {}", maskedKey, m_baseUrl);
+        m_isAvailable = true;
         return true;
     }
 
         // 检测模型是否可用
     bool GLMProvider::isAvailable() const
     {
-        return m_is_available;
-    }
-
-    // 获取模型名称
-    std::string GLMProvider::getModelName() const
-    {       
-        return "glm-5.3-flash";
+        return m_isAvailable;
     }
 
     // 获取模型的描述信息 
@@ -65,34 +67,19 @@ namespace ai_chat_sdk
     }
 
     // 发送消息-期待模型全量返回
-    std::string GLMProvider::sendMessage(const std::vector<Message> &messages, const std::map<std::string, std::string> &params)
+    std::string GLMProvider::sendMessage(const std::vector<Message> &messages, 
+        const GenerationParams &params)
     {
         // 1. 检查模型是否可用
-        if (m_is_available == false)
+        if (!m_isAvailable)
         {
             LOG_ERROR("GLMProvider sendMessage failed, model is not available");
             return "";
         }
 
-        // 2. 构造请求参数
-        double temperature = 1.0;
-        int max_tokens = 1024;
-        try 
-        {
-            if (params.find("temperature") != params.end())
-            {
-                temperature = std::stod(params.at("temperature"));
-            }
-            if (params.find("max_tokens") != params.end())
-            {
-                max_tokens = std::stoi(params.at("max_tokens"));
-            }
-        }
-        catch (const std::exception &e) 
-        {
-            LOG_ERROR("GLMProvider sendMessage failed, invalid parameter: {}", e.what());
-            return "";
-        }
+        // 2. 生成参数（缺省值由 GenerationParams 提供）
+        double temperature = params.temperature;
+        int maxTokens = params.maxTokens;
 
         // 3. 检查消息列表是否为空
         if (messages.empty())
@@ -116,7 +103,7 @@ namespace ai_chat_sdk
         requestBody["model"] = getModelName();
         requestBody["messages"] = messageArray;
         requestBody["temperature"] = temperature;
-        requestBody["max_tokens"] = max_tokens;
+        requestBody["max_tokens"] = maxTokens;
         requestBody["stream"] = false;
 
         // 6. 序列化
@@ -127,19 +114,19 @@ namespace ai_chat_sdk
         LOG_INFO("GLMProvider sendMessage request body: {}", requestBodyStr);
 
         // 7. 使用cpp-httplib库构造http客户端
-        httplib::Client client(m_BaseURL);
+        httplib::Client client(m_baseUrl);
         client.set_connection_timeout(30, 0);
         client.set_read_timeout(300, 0);  // GLM-5.3-flash 强制深度思考，响应较慢
 
         // 设置请求头
         httplib::Headers headers;
-        headers.insert({"Authorization", "Bearer " + m_APIKey});
+        headers.insert({"Authorization", "Bearer " + m_apiKey});
         headers.insert({"Content-Type", "application/json"});
         headers.insert({"Accept", "application/json"});
         headers.insert({"User-Agent", "GLMProvider"});
 
         // 8. 发送POST请求
-        std::string apiPath = m_PathPrefix + "/chat/completions";
+        std::string apiPath = m_pathPrefix + "/chat/completions";
         httplib::Result result = client.Post(apiPath.c_str(), headers, requestBodyStr, "application/json");
         
         // 检查响应是否为空
@@ -213,35 +200,19 @@ namespace ai_chat_sdk
 
     // 发送消息-期望模型流式返回
     std::string GLMProvider::sendMessageStream(const std::vector<Message> &messages, 
-        const std::map<std::string, std::string> &params, 
+        const GenerationParams &params, 
         std::function<void(const std::string &, StreamStatus)> callback)
     {
         // 1. 检查模型是否可用
-        if (m_is_available == false)
+        if (!m_isAvailable)
         {
             LOG_ERROR("GLMProvider sendMessage failed, model is not available");
             return "";
         }
 
-        // 2. 构造请求参数
-        double temperature = 1.0;
-        int max_tokens = 1024;
-        try 
-        {
-            if (params.find("temperature") != params.end())
-            {
-                temperature = std::stod(params.at("temperature"));
-            }
-            if (params.find("max_tokens") != params.end())
-            {
-                max_tokens = std::stoi(params.at("max_tokens"));
-            }
-        }
-        catch (const std::exception &e) 
-        {
-            LOG_ERROR("GLMProvider sendMessage failed, invalid parameter: {}", e.what());
-            return "";
-        }
+        // 2. 生成参数（缺省值由 GenerationParams 提供）
+        double temperature = params.temperature;
+        int maxTokens = params.maxTokens;
 
         // 3. 检查消息列表是否为空
         if (messages.empty())
@@ -265,7 +236,7 @@ namespace ai_chat_sdk
         requestBody["model"] = getModelName();
         requestBody["messages"] = messageArray;
         requestBody["temperature"] = temperature;
-        requestBody["max_tokens"] = max_tokens;
+        requestBody["max_tokens"] = maxTokens;
         requestBody["stream"] = true;
 
         // 6. 序列化
@@ -276,14 +247,14 @@ namespace ai_chat_sdk
         LOG_INFO("GLMProvider sendMessage request body : {}", requestBodyStr);
 
         // 7. 使用cpphttp-lib构建客户端
-        httplib::Client client(m_BaseURL);
+        httplib::Client client(m_baseUrl);
         client.set_connection_timeout(30, 0);
         client.set_read_timeout(600, 0);
 
         // 设置请求头
         httplib::Headers headers;
         headers.insert({"Content-Type", "application/json"});
-        headers.insert({"Authorization", "Bearer " + m_APIKey});
+        headers.insert({"Authorization", "Bearer " + m_apiKey});
         headers.insert({"Accept", "text/event-stream"});
         headers.insert({"User-Agent",    "GLMProvider/1.0"});
 
@@ -297,7 +268,7 @@ namespace ai_chat_sdk
         req.method = "POST";
         req.headers = headers;
         req.body = requestBodyStr;
-        req.path = (m_PathPrefix + "/chat/completions").c_str();
+        req.path = (m_pathPrefix + "/chat/completions").c_str();
 
         // 设置响应处理器-让客户端收到响应之后知道如何处理
         req.response_handler = [&](const httplib::Response &res)
@@ -411,7 +382,7 @@ namespace ai_chat_sdk
         {
             std::ostringstream oss;
             oss << result.error();  // httplib::Error 没有 .c_str()，需通过 operator<< 转可读字符串
-            LOG_ERROR("GLMProvider sendMessageStream HTTP request failed: error={}, url={}{}/chat/completions", oss.str(), m_BaseURL, m_PathPrefix);
+            LOG_ERROR("GLMProvider sendMessageStream HTTP request failed: error={}, url={}{}/chat/completions", oss.str(), m_baseUrl, m_pathPrefix);
             callback("", StreamStatus::Done);  
             return "";
         }

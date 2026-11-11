@@ -9,49 +9,51 @@
 namespace ai_chat_sdk
 {
     // DeepSeekProvider类
-    bool DeepSeekProvider::init(const std::map<std::string, std::string> &config)
+    bool DeepSeekProvider::init(const ApiModelConfig &config)
     {
-        // 初始化api_key
-        if (config.find("api_key") == config.end())
+        // 初始化模型名（必须与 DeepSeek API 支持的模型 id 一致）
+        if (config.modelName.empty())
         {
-            LOG_ERROR("DeepSeekProvider api_key is not found in config");
+            LOG_ERROR("DeepSeekProvider modelName is empty");
             return false;
         }
-        m_APIKey = config.at("api_key");
+        m_modelName = config.modelName;
 
-        // 初始化BaseURL
-        if (config.find("base_url") == config.end())
+        // 初始化 apiKey
+        if (config.apiKey.empty())
         {
-            LOG_ERROR("DeepSeekProvider base_url is not found in config");
+            LOG_ERROR("DeepSeekProvider apiKey is empty");
+            return false;
+        }
+        m_apiKey = config.apiKey;
+
+        // 初始化 baseUrl
+        if (config.baseUrl.empty())
+        {
+            LOG_ERROR("DeepSeekProvider baseUrl is empty");
             return false;
         }
 
         // httplib 0.10.x 的 Client 只能接受 scheme://host[:port]，不能带路径
-        m_BaseURL = config.at("base_url");
+        m_baseUrl = config.baseUrl;
         // 去尾斜杠
-        while (!m_BaseURL.empty() && m_BaseURL.back() == '/')
-            m_BaseURL.pop_back();
+        while (!m_baseUrl.empty() && m_baseUrl.back() == '/')
+            m_baseUrl.pop_back();
      
-        m_PathPrefix = "";  // DeepSeek 无版本前缀
+        m_pathPrefix = "";  // DeepSeek 无版本前缀
         // 初始化成功（key 掩码：只显示前4后4位，防止日志泄露）
-        std::string maskedKey = (m_APIKey.size() > 8)
-            ? m_APIKey.substr(0, 4) + "****" + m_APIKey.substr(m_APIKey.size() - 4)
+        std::string maskedKey = (m_apiKey.size() > 8)
+            ? m_apiKey.substr(0, 4) + "****" + m_apiKey.substr(m_apiKey.size() - 4)
             : "***";
-        LOG_INFO("DeepSeekProvider init success, api_key: {}, base_url: {}", maskedKey, m_BaseURL);
-        m_is_available = true;
+        LOG_INFO("DeepSeekProvider init success, apiKey: {}, baseUrl: {}", maskedKey, m_baseUrl);
+        m_isAvailable = true;
         return true;
     }
 
     // 检测模型是否可用
     bool DeepSeekProvider::isAvailable() const
     {
-        return m_is_available;
-    }
-
-    // 获取模型名称
-    std::string DeepSeekProvider::getModelName() const
-    {       
-        return "deepseek-flash";
+        return m_isAvailable;
     }
 
     // 获取模型的描述信息 
@@ -62,31 +64,18 @@ namespace ai_chat_sdk
 
     // 发送消息-期望模型全量返回
     std::string DeepSeekProvider::sendMessage(const std::vector<Message> &messages, 
-        const std::map<std::string, std::string> &params)
+        const GenerationParams &params)
     {   
         // 1. 检查模型是否可用
-        if (m_is_available == false)
+        if (!m_isAvailable)
         {
             LOG_ERROR("DeepSeekProvider sendMessage failed, model is not available");
             return "";
         }
 
-        // 2. 构造请求参数
-        double temperature = 0.7;
-        int max_tokens = 1024;
-        // std::stod 和std::stoi 在解析失败时会抛异常，而不是返回错误码，需要进行错误处理
-        try
-        {
-            if (params.find("temperature") != params.end())
-                temperature = std::stod(params.at("temperature"));
-            if (params.find("max_tokens") != params.end())
-                max_tokens = std::stoi(params.at("max_tokens"));
-        }
-        catch (const std::exception &e)
-        {
-            LOG_ERROR("DeepSeekProvider invalid params: {}", e.what());
-            return "";
-        }
+        // 2. 生成参数（缺省值由 GenerationParams 提供）
+        double temperature = params.temperature;
+        int maxTokens = params.maxTokens;
 
         // 3. 检查消息列表是否为空
         // 如果messages是空的,messageArray就是[],发给 DeepSeek 会返回 400 Bad Request （API 要求至少有一条消息）。
@@ -112,7 +101,7 @@ namespace ai_chat_sdk
         requestBody["model"] = getModelName();
         requestBody["messages"] = messageArray;
         requestBody["temperature"] = temperature;
-        requestBody["max_tokens"] = max_tokens;
+        requestBody["max_tokens"] = maxTokens;
         requestBody["stream"] = false;
 
         // 6. 序列化
@@ -123,19 +112,19 @@ namespace ai_chat_sdk
         LOG_INFO("DeepSeekProvider sendMessage request body: {}", requestBodyStr);
         
         // 7. 使用cpp-httplib库构造HTTP客户端
-        httplib::Client client(m_BaseURL);
+        httplib::Client client(m_baseUrl);
         client.set_connection_timeout(30, 0);     // 连接超时时间30秒
         client.set_read_timeout(60, 0);           // 读取超时时间60秒
 
         // 设置请求头
         httplib::Headers headers;
-        headers.insert({"Authorization", "Bearer " + m_APIKey});
+        headers.insert({"Authorization", "Bearer " + m_apiKey});
         headers.insert({"Content-Type",  "application/json"});
         headers.insert({"Accept",        "application/json"});
         headers.insert({"User-Agent",    "DeepSeekProvider/1.0"});
 
         // 8. 发送POST请求
-        std::string apiPath = m_PathPrefix + "/chat/completions";
+        std::string apiPath = m_pathPrefix + "/chat/completions";
         httplib::Result result = client.Post(
             apiPath.c_str(), headers, requestBodyStr, "application/json");
         // 检查响应是否为空
@@ -187,7 +176,7 @@ namespace ai_chat_sdk
 
     // 发送消息-期望模型流式返回
     std::string DeepSeekProvider::sendMessageStream(const std::vector<Message> &messages, 
-        const std::map<std::string, std::string> &params, 
+        const GenerationParams &params, 
         std::function<void(const std::string &, StreamStatus)> callback)
     {
         // 1. 检查模型是否可用
@@ -197,22 +186,9 @@ namespace ai_chat_sdk
             return "";
         }
 
-        // 2. 构造请求参数
-        double temperature = 0.7;
-        int max_tokens = 1024;
-        // std::stod 和std::stoi 在解析失败时会抛异常，而不是返回错误码，需要进行错误处理
-        try
-        {
-            if (params.find("temperature") != params.end())
-                temperature = std::stod(params.at("temperature"));
-            if (params.find("max_tokens") != params.end())
-                max_tokens = std::stoi(params.at("max_tokens"));
-        }
-        catch (const std::exception &e)
-        {
-            LOG_ERROR("DeepSeekProvider invalid params: {}", e.what());
-            return "";
-        }
+        // 2. 生成参数（缺省值由 GenerationParams 提供）
+        double temperature = params.temperature;
+        int maxTokens = params.maxTokens;
 
         // 3. 检查消息列表是否为空
         // 如果messages是空的,messageArray就是[],发给 DeepSeek 会返回 400 Bad Request （API 要求至少有一条消息）。
@@ -238,7 +214,7 @@ namespace ai_chat_sdk
         requestBody["model"] = getModelName();
         requestBody["messages"] = messageArray;
         requestBody["temperature"] = temperature;
-        requestBody["max_tokens"] = max_tokens;
+        requestBody["max_tokens"] = maxTokens;
         requestBody["stream"] = true;
 
         // 6. 序列化
@@ -249,13 +225,13 @@ namespace ai_chat_sdk
         LOG_INFO("DeepSeekProvider sendMessage request body: {}", requestBodyStr);
         
         // 7. 使用cpp-httplib库构造HTTP客户端
-        httplib::Client client(m_BaseURL);
+        httplib::Client client(m_baseUrl);
         client.set_connection_timeout(30, 0);     // 连接超时时间30秒
         client.set_read_timeout(300, 0);           // 流式响应需要更长的时间
         
         // 设置请求头
         httplib::Headers headers;
-        headers.insert({"Authorization", "Bearer " + m_APIKey});
+        headers.insert({"Authorization", "Bearer " + m_apiKey});
         headers.insert({"Content-Type",  "application/json"});
         headers.insert({"Accept",        "text/event-stream"});
         headers.insert({"User-Agent",    "DeepSeekProvider/1.0"});
@@ -268,7 +244,7 @@ namespace ai_chat_sdk
         // 9. 创建请求对象
         httplib::Request req;
         req.method = "POST";
-        req.path = (m_PathPrefix + "/chat/completions").c_str();
+        req.path = (m_pathPrefix + "/chat/completions").c_str();
         req.headers = headers;
         req.body = requestBodyStr;
 
@@ -371,7 +347,7 @@ namespace ai_chat_sdk
         {
             std::ostringstream oss;
             oss << result.error();
-            LOG_ERROR("DeepSeekProvider sendMessageStream HTTP request failed: error={}, url={}{}/chat/completions", oss.str(), m_BaseURL, m_PathPrefix);
+            LOG_ERROR("DeepSeekProvider sendMessageStream HTTP request failed: error={}, url={}{}/chat/completions", oss.str(), m_baseUrl, m_pathPrefix);
             callback("", StreamStatus::Done);  
             return "";
         }

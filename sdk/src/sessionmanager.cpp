@@ -6,26 +6,26 @@
 namespace ai_chat_sdk
 {
     // static 成员必须在类外分配存储，这是 C++ 规则
-    std::atomic<int64_t> SessionManager::m_messageCounter{0};
-    std::atomic<int64_t> SessionManager::m_sessionCounter{0};
+    std::atomic<int64_t> SessionManager::s_messageCounter{0};
+    std::atomic<int64_t> SessionManager::s_sessionCounter{0};
 
     std::string SessionManager::generateMessageId()
     {
-        m_messageCounter.fetch_add(1);
+        s_messageCounter.fetch_add(1);
         std::time_t now = std::time(nullptr);
         std::ostringstream oss;
         oss << "msg_" << now << "_"
-            << std::setfill('0') << std::setw(8) << m_messageCounter;  // oss = msg_1700000000_00000042
+            << std::setfill('0') << std::setw(8) << s_messageCounter;  // oss = msg_1700000000_00000042
         return oss.str();
     }
 
     std::string SessionManager::generateSessionId()
     {
-        m_sessionCounter.fetch_add(1);
+        s_sessionCounter.fetch_add(1);
         std::time_t now = std::time(nullptr);
         std::ostringstream oss;
         oss << "session_" << now << "_"
-            << std::setfill('0') << std::setw(8) << m_sessionCounter;
+            << std::setfill('0') << std::setw(8) << s_sessionCounter;
         return oss.str();
     }
 
