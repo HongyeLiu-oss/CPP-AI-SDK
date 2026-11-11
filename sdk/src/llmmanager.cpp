@@ -46,6 +46,7 @@ namespace ai_chat_sdk
                 availableModels.emplace_back(it.second->getModelName());
                 auto &info = availableModels.back();
                 info.description = it.second->getModelDescription();
+                info.isAvailable = true;
             }
         }
         return availableModels;

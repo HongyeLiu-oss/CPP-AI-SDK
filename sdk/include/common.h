@@ -37,6 +37,7 @@ namespace ai_chat_sdk
     // 通过API方式接入云端模型的配置
     struct ApiModelConfig : public ModelConfig
     {
+        std::string provider;         // 模型提供方标识，如 deepseek / glm，用于创建对应 provider
         std::string apiKey;           // API密钥
         std::string baseUrl;          // API基础地址，如 https://api.deepseek.com
     };
