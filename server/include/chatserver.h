@@ -23,7 +23,15 @@ namespace chat_server
         // 注册全部路由
         void setupRoutes();
 
+        // 从请求头解析 token 并校验，返回 userId；无效返回空串
+        std::string authenticate(const httplib::Request &req) const;
+        // 从请求头解析 token（Authorization: Bearer <token>），空则返回空串
+        static std::string extractToken(const httplib::Request &req);
+
         // --- 接口处理函数 ---
+        void handleRegister(const httplib::Request &req, httplib::Response &res);
+        void handleLogin(const httplib::Request &req, httplib::Response &res);
+        void handleLogout(const httplib::Request &req, httplib::Response &res);
         void handleGetModels(const httplib::Request &req, httplib::Response &res);
         void handleGetSessions(const httplib::Request &req, httplib::Response &res);
         void handleCreateSession(const httplib::Request &req, httplib::Response &res);

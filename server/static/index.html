@@ -231,6 +231,68 @@
 
   .backdrop { display: none; }
 
+  /* ---------- 登录 / 注册 ---------- */
+  .auth-screen {
+    position: fixed; inset: 0; z-index: 50;
+    display: grid; place-items: center;
+    background: linear-gradient(135deg, #eef1ff 0%, #f7f5ff 45%, #eef7ff 100%);
+  }
+  .auth-screen.hidden { display: none; }
+  .auth-card {
+    width: min(400px, 92vw); padding: 34px 32px 30px;
+    background: #fff; border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(50, 50, 120, .14);
+    animation: rise .35s ease both;
+  }
+  .auth-logo {
+    width: 52px; height: 52px; margin: 0 auto 16px; border-radius: 15px;
+    display: grid; place-items: center; font-size: 24px; color: #fff;
+    background: linear-gradient(135deg, var(--brand), var(--brand-2));
+    box-shadow: 0 10px 24px rgba(91, 91, 214, .3);
+  }
+  .auth-card h2 { margin: 0 0 6px; text-align: center; font-size: 20px; }
+  .auth-sub { margin: 0 0 22px; text-align: center; font-size: 12.5px; color: var(--muted); }
+  .auth-field { margin-bottom: 12px; }
+  .auth-field label { display: block; margin-bottom: 6px; font-size: 12px; color: #4b5563; font-weight: 600; }
+  .auth-field input {
+    width: 100%; padding: 11px 14px; font-size: 14px; color: var(--text);
+    border: 1px solid var(--border); border-radius: 11px; outline: none;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .auth-field input:focus { border-color: #c7c9f4; box-shadow: 0 0 0 3px rgba(91, 91, 214, .12); }
+  .auth-btn {
+    width: 100%; padding: 12px; margin-top: 6px; font-size: 14px; font-weight: 600; color: #fff;
+    border: none; border-radius: 11px; cursor: pointer;
+    background: linear-gradient(135deg, var(--brand), var(--brand-2));
+    box-shadow: 0 6px 16px rgba(91, 91, 214, .28);
+    transition: transform .15s ease, opacity .15s ease;
+  }
+  .auth-btn:hover { transform: translateY(-1px); }
+  .auth-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  .auth-switch { margin-top: 16px; text-align: center; font-size: 13px; color: var(--muted); }
+  .auth-switch a { color: var(--brand); cursor: pointer; font-weight: 600; text-decoration: none; }
+  .auth-error {
+    display: none; margin-top: 12px; padding: 9px 12px; font-size: 12.5px;
+    color: var(--danger); background: #fff5f5; border: 1px solid #fecaca; border-radius: 9px;
+  }
+  .auth-error.show { display: block; }
+  .auth-error.success { color: #15803d; background: #f0fdf4; border-color: #bbf7d0; }
+
+  /* 侧栏用户信息 + 登出 */
+  .sidebar-footer { display: flex; align-items: center; justify-content: space-between; }
+  .user-info { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .user-avatar {
+    width: 22px; height: 22px; flex: 0 0 22px; border-radius: 7px;
+    display: grid; place-items: center; font-size: 11px; font-weight: 700;
+    color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand-2));
+  }
+  .user-name { font-size: 12px; color: #374151; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .logout-btn {
+    border: none; background: transparent; color: #9ca3af; font-size: 12px; cursor: pointer;
+    padding: 4px 6px; border-radius: 6px; transition: color .15s ease, background .15s ease;
+  }
+  .logout-btn:hover { color: var(--danger); background: #fee2e2; }
+
   @keyframes blink { 0%, 80%, 100% { opacity: .35; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
   @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -257,6 +319,25 @@
 </style>
 </head>
 <body>
+<div class="auth-screen" id="authScreen">
+  <div class="auth-card">
+    <div class="auth-logo">✦</div>
+    <h2 id="authTitle">登录</h2>
+    <p class="auth-sub" id="authSub">登录后，你的每个对话都是独立的</p>
+    <div class="auth-field">
+      <label for="authUsername">用户名</label>
+      <input id="authUsername" type="text" autocomplete="username" placeholder="输入用户名">
+    </div>
+    <div class="auth-field">
+      <label for="authPassword">密码</label>
+      <input id="authPassword" type="password" autocomplete="current-password" placeholder="输入密码">
+    </div>
+    <button id="authBtn" class="auth-btn">登 录</button>
+    <div class="auth-error" id="authError"></div>
+    <div class="auth-switch" id="authSwitch">还没有账号？<a id="authSwitchLink">注册</a></div>
+  </div>
+</div>
+
 <div class="app">
   <aside class="sidebar" id="sidebar">
     <div class="brand">
@@ -274,7 +355,13 @@
 
     <div class="list-header">最近对话 <span id="sessionCount">0</span></div>
     <ul id="sessionList"></ul>
-    <div class="sidebar-footer">基于 ChatSDK · 会话已持久化到 SQLite</div>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <span class="user-avatar" id="userAvatar">U</span>
+        <span class="user-name" id="userName">未登录</span>
+      </div>
+      <button class="logout-btn" id="logoutBtn">退出</button>
+    </div>
   </aside>
   <div class="backdrop" id="backdrop"></div>
 
@@ -319,9 +406,21 @@
 </div>
 
 <script>
-  const state = { sessionId: null, modelName: '', sending: false };
+  const state = { sessionId: null, modelName: '', sending: false, token: '', username: '', isRegister: false };
 
   const $ = (id) => document.getElementById(id);
+  const authScreen = $('authScreen');
+  const authTitle = $('authTitle');
+  const authSub = $('authSub');
+  const authUsername = $('authUsername');
+  const authPassword = $('authPassword');
+  const authBtn = $('authBtn');
+  const authError = $('authError');
+  const authSwitch = $('authSwitch');
+  const authSwitchLink = $('authSwitchLink');
+  const userAvatar = $('userAvatar');
+  const userName = $('userName');
+  const logoutBtn = $('logoutBtn');
   const modelSelect = $('modelSelect');
   const newChatBtn = $('newChatBtn');
   const sessionList = $('sessionList');
@@ -335,11 +434,137 @@
   const sidebar = $('sidebar');
   const backdrop = $('backdrop');
 
-  async function api(path, options) {
-    const resp = await fetch(path, options);
+  async function api(path, options = {}) {
+    const headers = Object.assign({}, options.headers || {});
+    if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
+    const resp = await fetch(path, Object.assign({}, options, { headers }));
     const json = await resp.json();
-    if (!json.success) throw new Error(json.message || '请求失败');
+    if (!json.success) {
+      if (resp.status === 401 && state.token) {
+        // token 失效或过期：清除并回到登录页
+        logoutLocal();
+      }
+      throw new Error(json.message || '请求失败');
+    }
     return json.data;
+  }
+
+  function showAuthError(msg) {
+    authError.textContent = msg;
+    authError.classList.add('show');
+    authError.classList.remove('success');
+  }
+  // 成功提示复用同一个提示条，只切换配色
+  function showAuthNotice(msg) {
+    authError.textContent = msg;
+    authError.classList.add('show', 'success');
+  }
+  function clearAuthError() {
+    authError.textContent = '';
+    authError.classList.remove('show', 'success');
+  }
+
+  function setAuthMode(isRegister) {
+    state.isRegister = isRegister;
+    authTitle.textContent = isRegister ? '注册' : '登录';
+    authBtn.textContent = isRegister ? '注 册' : '登 录';
+    authSub.textContent = isRegister ? '注册后，你的每个对话都是独立的' : '登录后，你的每个对话都是独立的';
+    authSwitch.innerHTML = isRegister
+      ? '已有账号？<a id="authSwitchLink">登录</a>'
+      : '还没有账号？<a id="authSwitchLink">注册</a>';
+    $('authSwitchLink').onclick = () => setAuthMode(!state.isRegister);
+    clearAuthError();
+  }
+
+  function saveAuth(token, username) {
+    state.token = token;
+    state.username = username;
+    localStorage.setItem('chat_token', token);
+    localStorage.setItem('chat_username', username);
+  }
+
+  function logoutLocal() {
+    state.token = '';
+    state.username = '';
+    localStorage.removeItem('chat_token');
+    localStorage.removeItem('chat_username');
+    userName.textContent = '未登录';
+    userAvatar.textContent = 'U';
+    resetChat();
+    showAuth();
+  }
+
+  function showAuth() {
+    authScreen.classList.remove('hidden');
+    authPassword.value = '';
+    authPassword.focus();
+  }
+  function hideAuth() {
+    authScreen.classList.add('hidden');
+  }
+
+  async function handleAuth() {
+    const username = authUsername.value.trim();
+    const password = authPassword.value;
+    if (!username || !password) {
+      showAuthError('请输入用户名和密码');
+      return;
+    }
+    clearAuthError();
+    authBtn.disabled = true;
+    try {
+      const path = state.isRegister ? '/api/register' : '/api/login';
+      const resp = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const json = await resp.json();
+      if (!json.success) {
+        if (state.isRegister && resp.status === 409) {
+          showAuthError('用户名已存在，请换一个用户名');
+        } else {
+          showAuthError(json.message || '操作失败');
+        }
+        return;
+      }
+
+      // 注册成功不自动登录：切回登录页，保留用户名、清空密码，由用户自己登录
+      if (state.isRegister) {
+        setAuthMode(false);
+        authUsername.value = username;
+        authPassword.value = '';
+        showAuthNotice('注册成功，请输入密码登录');
+        authPassword.focus();
+        return;
+      }
+
+      saveAuth(json.data.token, json.data.username);
+      userName.textContent = json.data.username;
+      userAvatar.textContent = (json.data.username[0] || 'U').toUpperCase();
+      hideAuth();
+      authUsername.value = '';
+      authPassword.value = '';
+      await loadModels();
+      await loadSessions();
+    } catch (err) {
+      showAuthError(err.message || '网络错误');
+    } finally {
+      authBtn.disabled = false;
+    }
+  }
+
+  async function handleLogout() {
+    try {
+      await fetch('/api/logout', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + state.token },
+        body: '{}'
+      });
+    } catch (err) {
+      // 登出接口失败也继续本地清理
+    }
+    logoutLocal();
   }
 
   function formatTime(ts) {
@@ -538,7 +763,10 @@
     try {
       const resp = await fetch('/api/message/async', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + state.token
+        },
         body: JSON.stringify({ sessionId: state.sessionId, content })
       });
       if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
@@ -595,6 +823,15 @@
 
   newChatBtn.onclick = () => { createSession(); closeSidebar(); };
   sendBtn.onclick = sendMessage;
+  authBtn.onclick = handleAuth;
+  authSwitchLink.onclick = () => setAuthMode(!state.isRegister);
+  authUsername.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') authPassword.focus();
+  });
+  authPassword.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleAuth();
+  });
+  logoutBtn.onclick = handleLogout;
   input.addEventListener('input', autoGrow);
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -608,13 +845,33 @@
   };
   backdrop.onclick = closeSidebar;
 
+  // 初始化：先加载模型（登录页和主界面都要用），再判断登录态
   (async () => {
     try {
-      bindChips();
+      setAuthMode(false);
       await loadModels();
-      await loadSessions();
+
+      // 尝试用本地保存的 token 恢复登录态
+      const savedToken = localStorage.getItem('chat_token');
+      const savedUsername = localStorage.getItem('chat_username');
+      if (savedToken) {
+        state.token = savedToken;
+        state.username = savedUsername || '';
+        // 用一个需要鉴权的请求验证 token 是否仍有效
+        try {
+          await api('/api/sessions');
+          userName.textContent = savedUsername || '用户';
+          userAvatar.textContent = (savedUsername[0] || 'U').toUpperCase();
+          hideAuth();
+          await loadSessions();
+        } catch (err) {
+          logoutLocal();
+        }
+      } else {
+        showAuth();
+      }
     } catch (err) {
-      messagesInner.innerHTML = `<div class="hero"><h2>加载失败</h2><p>${err.message}</p></div>`;
+      showAuth();
     }
   })();
 </script>

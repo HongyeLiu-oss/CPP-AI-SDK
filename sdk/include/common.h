@@ -57,10 +57,26 @@ namespace ai_chat_sdk
         {}
     };
 
+    // 用户信息（注册 / 登录用）
+    struct User
+    {
+        std::string userId;            // 用户ID
+        std::string username;          // 用户名（唯一）
+        std::string passwordHash;      // 密码哈希（SHA256 加盐后的 hex）
+        std::string salt;              // 每个用户独立的随机盐
+        std::time_t createTime;        // 注册时间戳
+
+        // 构造函数
+        User(const std::string &username_)
+        :username(username_)
+        {}
+    };
+
     // 会话信息
     struct Session
     {
         std::string sessionId;         // 会话ID
+        std::string userId;            // 所属用户ID（会话隔离的关键字段）
         std::string modelName;         // 模型名称
         std::vector<Message> messages; // 会话中的消息列表
         std::time_t createTime;        // 会话创建时间戳

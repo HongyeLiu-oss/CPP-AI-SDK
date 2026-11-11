@@ -7,12 +7,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # SDK 编译为静态库，供 server / test 链接
 add_library(ai_chat_sdk STATIC
     src/chatsdk.cpp
+    src/authmanager.cpp
     src/llmmanager.cpp
     src/sessionmanager.cpp
     src/datamanager.cpp
     src/deepseekprovider.cpp
     src/glmprovider.cpp
-    src/util/log.cpp)
+    src/util/log.cpp
+    src/util/crypto.cpp)
 
 target_include_directories(ai_chat_sdk PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
